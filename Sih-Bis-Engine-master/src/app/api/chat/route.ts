@@ -107,6 +107,7 @@ export async function POST(req: NextRequest) {
             content: answer,
             sources,
             stopped: false,
+            mode,
             createdAt: new Date(),
         });
 

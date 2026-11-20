@@ -96,6 +96,14 @@ const Page = () => {
     const [conversationError, setConversationError] = useState<string | null>(null);
     const [ragMode, setRagMode] = useState<RagMode>("vector");
 
+    // Restore persisted mode from localStorage after mount (avoids SSR hydration mismatch)
+    useEffect(() => {
+        const saved = window.localStorage.getItem("bis_rag_mode");
+        if (saved === "vector" || saved === "vectorless") {
+            setRagMode(saved);
+        }
+    }, []);
+
     // Sidebar conversation history state
     const [conversations, setConversations] = useState<ConversationItem[]>([]);
     const [loadingConversations, setLoadingConversations] = useState(false);
@@ -231,16 +239,21 @@ const Page = () => {
                 throw new Error("Failed to load conversation messages");
             }
 
-            const data = await readJson<{ success?: boolean; conversation?: { messages?: Array<{ role: string; content: string; _id?: string; createdAt?: string; sources?: Source[]; stopped?: boolean }> } }>(res);
+            const data = await readJson<{ success?: boolean; conversation?: { messages?: Array<{ role: string; content: string; _id?: string; createdAt?: string; sources?: Source[]; stopped?: boolean; mode?: string }> } }>(res);
             if (data?.success && data.conversation?.messages) {
                 const msgs = data.conversation.messages;
                 const rebuiltResponses: StoredResponse[] = [];
 
                 let currentUserQuery = "";
+                let lastAssistantMode: RagMode = ragMode; // carry forward current mode as default
+
                 for (const m of msgs) {
                     if (m.role === "user") {
                         currentUserQuery = m.content;
                     } else if (m.role === "assistant") {
+                        const msgMode: RagMode =
+                            m.mode === "vectorless" ? "vectorless" : "vector";
+                        lastAssistantMode = msgMode;
                         rebuiltResponses.push({
                             id: m._id || crypto.randomUUID(),
                             createdAt: m.createdAt || new Date().toISOString(),
@@ -248,12 +261,16 @@ const Page = () => {
                             answer: m.content,
                             sources: m.sources || [],
                             status: "complete",
-                            mode: "vector",
+                            mode: msgMode,
                             stopped: m.stopped || false,
                         });
                         currentUserQuery = "";
                     }
                 }
+
+                // Restore the RAG mode toggle to what was last used in this conversation
+                setRagMode(lastAssistantMode);
+                window.localStorage.setItem("bis_rag_mode", lastAssistantMode);
 
                 setResponses(rebuiltResponses);
                 reset();
@@ -366,6 +383,7 @@ const Page = () => {
                         conversationId: conversationIdRef.current,
                         partialAnswer: partialText,
                         sources: activeResp.sources || [],
+                        mode: activeResp.mode,
                     }),
                 }).catch((err) => console.error("Error saving stopped response:", err));
             }
@@ -714,7 +732,10 @@ const Page = () => {
                                 <button
                                     type="button"
                                     id="mode-vector"
-                                    onClick={() => setRagMode("vector")}
+                                    onClick={() => {
+                                        setRagMode("vector");
+                                        window.localStorage.setItem("bis_rag_mode", "vector");
+                                    }}
                                     className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold transition ${
                                         ragMode === "vector"
                                             ? "bg-[#0f4c81] text-white shadow-xs"
@@ -727,7 +748,10 @@ const Page = () => {
                                 <button
                                     type="button"
                                     id="mode-vectorless"
-                                    onClick={() => setRagMode("vectorless")}
+                                    onClick={() => {
+                                        setRagMode("vectorless");
+                                        window.localStorage.setItem("bis_rag_mode", "vectorless");
+                                    }}
                                     className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold transition ${
                                         ragMode === "vectorless"
                                             ? "bg-[#0f4c81] text-white shadow-xs"

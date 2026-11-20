@@ -397,7 +397,7 @@ async def chat(body: ChatRequest, request: Request):
         )
         answer, sources = result.get("answer", ""), result.get("sources", [])
 
-    now = datetime.utcnow(); messages = c.get("messages", []) + [{"role": "user", "content": query, "createdAt": now}, {"role": "assistant", "content": answer, "sources": sources, "stopped": False, "createdAt": now}]
+    now = datetime.utcnow(); messages = c.get("messages", []) + [{"role": "user", "content": query, "createdAt": now}, {"role": "assistant", "content": answer, "sources": sources, "stopped": False, "mode": mode, "createdAt": now}]
     title = query[:47] + "..." if len(query) > 50 else query
     update = {"messages": messages, "updatedAt": now};
     if c.get("title") == "New Chat": update["title"] = title
@@ -414,7 +414,8 @@ async def stop_chat(request: Request):
     if not c: return response({"message": "Conversation not found"}, 404)
     if not owned(c, user): return response({"message": "Forbidden"}, 403)
     partial = body.get("partialAnswer", ""); content = f"{partial.strip()}\n\n*[Response stopped by user]*" if isinstance(partial, str) and partial.strip() else "*[Response stopped by user before completion]*"
-    db().conversations.update_one({"_id": c["_id"]}, {"$push": {"messages": {"role": "assistant", "content": content, "sources": body.get("sources", []), "stopped": True, "createdAt": datetime.utcnow()}}, "$set": {"updatedAt": datetime.utcnow()}})
+    stopped_mode = body.get("mode", "vector") if body.get("mode") in ("vector", "vectorless") else "vector"
+    db().conversations.update_one({"_id": c["_id"]}, {"$push": {"messages": {"role": "assistant", "content": content, "sources": body.get("sources", []), "stopped": True, "mode": stopped_mode, "createdAt": datetime.utcnow()}}, "$set": {"updatedAt": datetime.utcnow()}})
     return response({"success": True, "message": "Stopped response saved"})
 
 

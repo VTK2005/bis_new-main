@@ -7,6 +7,7 @@ export interface ConversationMessage {
     content: string;
     sources?: any[];
     stopped?: boolean;
+    mode?: "vector" | "vectorless";
     createdAt: Date;
 }
 
@@ -37,6 +38,11 @@ const MessageSchema = new Schema<ConversationMessage>(
         stopped: {
             type: Boolean,
             default: false,
+        },
+        mode: {
+            type: String,
+            enum: ["vector", "vectorless"],
+            default: "vector",
         },
         createdAt: {
             type: Date,

@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     try {
         const authUser = await getAuthUser(req);
         const body = await req.json();
-        const { conversationId, partialAnswer, sources } = body;
+        const { conversationId, partialAnswer, sources, mode } = body;
 
         if (!conversationId || typeof conversationId !== "string") {
             return NextResponse.json({ message: "conversationId is required" }, { status: 400 });
@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
             content: stoppedContent,
             sources: sources || [],
             stopped: true,
+            mode: mode === "vectorless" ? "vectorless" : "vector",
             createdAt: new Date(),
         });
 
